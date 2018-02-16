@@ -124,6 +124,59 @@ namespace SoLoud
 
 #define MAKEDWORD(a,b,c,d) (((d) << 24) | ((c) << 16) | ((b) << 8) | (a))
 
+	void loadpcm(File *aReader, unsigned int aBits, unsigned int aChannels, unsigned int aReadChannels, unsigned int aSamples)
+	{
+		int i, j;
+		if (aBits == 8)
+		{
+			for (i = 0; i < aSamples; i++)
+			{
+				for (j = 0; j < aChannels; j++)
+				{
+					if (j == 0)
+					{
+						mData[i] = ((signed)aReader->read8() - 128) / (float)0x80;
+					}
+					else
+					{
+						if (aReadChannels > 1 && j == 1)
+						{
+							mData[i + aSamples] = ((signed)aReader->read8() - 128) / (float)0x80;
+						}
+						else
+						{
+							aReader->read8();
+						}
+					}
+				}
+			}
+		}
+		else if (aBits == 16)
+		{
+			for (i = 0; i < aSamples; i++)
+			{
+				for (j = 0; j < aChannels; j++)
+				{
+					if (j == 0)
+					{
+						mData[i] = ((signed short)aReader->read16()) / (float)0x8000;
+					}
+					else
+					{
+						if (readchannels > 1 && j == 1)
+						{
+							mData[i + aSamples] = ((signed short)aReader->read16()) / (float)0x8000;
+						}
+						else
+						{
+							aReader->read16();
+						}
+					}
+				}
+			}
+		}
+	}
+
 	result Wav::loadwav(File *aReader)
 	{
 		int filesize = aReader->read32();
@@ -180,55 +233,7 @@ namespace SoLoud
 				mData = new float[samples * readchannels];
 				mSampleCount = samples;
 
-				int i, j;
-				if (bitspersample == 8)
-				{
-					for (i = 0; i < samples; i++)
-					{
-						for (j = 0; j < channels; j++)
-						{
-							if (j == 0)
-							{
-								mData[i] = ((signed)aReader->read8() - 128) / (float)0x80;
-							}
-							else
-							{
-								if (readchannels > 1 && j == 1)
-								{
-									mData[i + samples] = ((signed)aReader->read8() - 128) / (float)0x80;
-								}
-								else
-								{
-									aReader->read8();
-								}
-							}
-						}
-					}
-				}
-				else if (bitspersample == 16)
-				{
-					for (i = 0; i < samples; i++)
-					{
-						for (j = 0; j < channels; j++)
-						{
-							if (j == 0)
-							{
-								mData[i] = ((signed short)aReader->read16()) / (float)0x8000;
-							}
-							else
-							{
-								if (readchannels > 1 && j == 1)
-								{
-									mData[i + samples] = ((signed short)aReader->read16()) / (float)0x8000;
-								}
-								else
-								{
-									aReader->read16();
-								}
-							}
-						}
-					}
-				}
+				loadpcm(aReader, aBits);
 			}
 
 			// skip rest of chunk
@@ -340,6 +345,22 @@ namespace SoLoud
 	result Wav::loadFile(File *aFile)
 	{
 		return testAndLoadFile(aFile);
+	}
+
+	result Wav::loadRaw(unsigned char *aMem, unsigned int aLength, unsigned int aSamples, unsigned int aChannels, unsigned int aBits, bool aCopy, bool aTakeOwnership)
+	{
+		if (aMem == NULL || aLength == 0)
+			return INVALID_PARAMETER;
+
+		MemoryFile dr;
+		dr.openMem(aMem, aLength, aCopy, aTakeOwnership);
+		delete[] mData;
+		mData = 0;
+		mSampleCount = aSamples;
+		mChannels = aChannels;
+
+		loadpcm(&dr, aBits, aChannels > 2 ? aChannels : 2, aChannels, aSamples);
+		
 	}
 
 	AudioSourceInstance *Wav::createInstance()
